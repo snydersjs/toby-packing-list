@@ -189,20 +189,6 @@ body {
   filter: invert(0.7);
   cursor: pointer;
 }
-.type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.type-btn {
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: var(--surface);
-  color: var(--text2);
-  font-size: 13px; font-weight: 500;
-  cursor: pointer; text-align: center;
-  transition: all 0.15s;
-}
-.type-btn.sel { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); }
-.travel-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
-.setup-actions { display: flex; gap: 8px; margin-top: 12px; }
 
 /* ── Buttons ── */
 .btn {
@@ -639,7 +625,7 @@ body {
       <div class="setup-grid">
         <div class="form-group span2">
           <label>Destination</label>
-          <input type="text" id="sDestination" placeholder="City, State or Country" />
+          <input type="text" id="sDestination" placeholder="City, State or Country" onblur="saveDestination(this.value)" onkeydown="if(event.key==='Enter')this.blur()" />
         </div>
         <div class="form-group">
           <label>Depart</label>
@@ -649,18 +635,6 @@ body {
           <label>Return</label>
           <input type="date" id="sEnd" onchange="onDatesChange()" />
         </div>
-        <div class="form-group">
-          <label>Travel Mode</label>
-          <div class="travel-grid">
-            <button class="type-btn sel" id="mAir" onclick="selMode('air')">Air</button>
-            <button class="type-btn" id="mCar" onclick="selMode('car')">Car</button>
-            <button class="type-btn" id="mOther" onclick="selMode('other')">Other</button>
-          </div>
-        </div>
-      </div>
-      <div class="setup-actions">
-        <button class="btn btn-primary" onclick="generateList()">Generate List</button>
-
       </div>
     </div>
   </div>
@@ -734,16 +708,12 @@ const STATE_REF   = doc(db, 'TobyPackingList', 'currentTrip');
 const HISTORY_REF = doc(db, 'TobyPackingList', 'tripHistory');
 const MASTER_REF  = doc(db, 'TobyPackingList', 'masterTemplate');
 
-// ── Trip History (pre-seeded from Excel) ──────────────────────
-const SEEDED_HISTORY = []; // Loaded from Firestore on first run
-
 // ── App State ──────────────────────────────────────────────────
 let state = {
   trips: [],        // array of trip objects
   activeIdx: 0,
   history: [],      // past trips (dest + dates)
-  master: null,     // master template (loaded from Firestore)
-  setupMode: 'air'
+  master: null      // master template (loaded from Firestore)
 };
 
 let confirmCb = null;
@@ -757,6 +727,7 @@ window.saveDestination = function(val) {
   if (!name || name === trip.destination) return;
   trip.destination = name;
   document.getElementById('listTitle').value = name;
+  document.getElementById('sDestination').value = name;
   renderTabs();
   save();
 };
@@ -841,16 +812,13 @@ async function boot() {
     }
   } catch(e) { console.error('Master load error', e); }
 
-  // Load or seed trip history from Firestore
+  // Load trip history from Firestore (starts empty for a new collection)
   try {
     const histSnap = await getDoc(HISTORY_REF);
     if (histSnap.exists()) {
       state.history = histSnap.data().entries || [];
     } else {
-      // First run: seed with Excel history
-      const seeded = [{"d":"Costa Mesa, CA","t":"Feb 18-23, 2026"},{"d":"Simsbury","t":"Jan 22 - 26, 2026"},{"d":"Costa Rica","t":"Dec 13-20, 2025"},{"d":"Tampa","t":"Dec 7-10, 2025"},{"d":"Eugene to Denver","t":"Nov 20-23, 2025"},{"d":"Sante Fe","t":"Nov 8-10, 2025"},{"d":"Orlando","t":"Nov 4-7, 2025"},{"d":"Fort Worth","t":"Sept 22-25, 2025"},{"d":"Austin, Le Mans","t":"Sep 5-8, 2025"},{"d":"Tampa","t":"Aug 26-29, 2025"},{"d":"Eugene","t":"July 16 - 20, 2025"},{"d":"Italy and Slovenia","t":"July 3-12, 2025"},{"d":"Orlando","t":"June 2 - 5, 2025"},{"d":"Brownsville","t":"May 14 - 18, 2025"},{"d":"Tampa","t":"Apr 27 - May 1, 2025"},{"d":"Phoenix","t":"Mar 17 - 21, 2025"},{"d":"Utah / AZ","t":"Feb 23 - Mar 1, 2025"},{"d":"Eugene","t":"Jan 30 - Feb 2, 2025"},{"d":"Oxy move out","t":"Jan 17-19, 2025"},{"d":"Marketing LT","t":"Dec 3-5, 2024"},{"d":"Austin AWS","t":"Nov 18-20, 2024"},{"d":"Portugal & Morocco","t":"Oct. 28 - Nov. 15, 2024"},{"d":"Orlando","t":"Oct 20-24, 2024"},{"d":"Los Angeles","t":"Oct 17-20, 2024"},{"d":"Brownsville, TX","t":"Sept 27-30, 2024"},{"d":"Eugene","t":"Sept 5-8, 2024"},{"d":"Services meeting","t":"August 21-23, 2024"},{"d":"Oxy drop off","t":"August 15-19, 2024"},{"d":"Broadmoor Conference","t":"August 6-8, 2024"},{"d":"SLO","t":"June 13-18, 2024"},{"d":"Eugene","t":"April 4-7, 2024"},{"d":"Phoenix","t":"March 1-3, 2024"},{"d":"Atlanta","t":"Feb 19-23, 2024"},{"d":"Eugene","t":"Feb 1-4, 2024"},{"d":"Sante Fe","t":"Dec 27 - 29, 2023"},{"d":"Eugene","t":"Nov 30 - Dec 3, 2023"},{"d":"Eugene","t":"Nov 27 - 29, 2023"},{"d":"Eugene","t":"Sept 28 - Oct 1, 2023"},{"d":"London","t":"Aug 31 - Sept 9, 2023"},{"d":"Eugene","t":"July 20-23, 2023"},{"d":"CA College Tour","t":"May 28-June 4, 2023"},{"d":"San Francisco, RSA","t":"April 24-27, 2023"},{"d":"Eugene","t":"April 19-22, 2023"},{"d":"New Mexico, Arizona","t":"March 24-31, 2023"},{"d":"Atlanta","t":"July 26-29, 2023"},{"d":"Eugene","t":"Feb. 2-5, 2023"},{"d":"San Luis Obispo","t":"Jan 12-15, 2023"},{"d":"Belize","t":"Dec 20-28, 2022"},{"d":"Cal Poly","t":"Nov. 12-15, 2022"},{"d":"Atlanta","t":"July 26-29, 2022"},{"d":"Atlanta","t":"July 26-29, 2022"},{"d":"San Diego","t":"July 29-Aug 9, 2022"},{"d":"Atlanta","t":"May 30 - June 2, 2022"},{"d":"San Francisco","t":"Feb 24-27, 2020"},{"d":"San Francisco","t":"Feb 24-27, 2020"},{"d":"Disney/Universal","t":"Feb 12-16, 2020"},{"d":"Phoenix","t":"Feb 7-9, 2020"},{"d":"San Diego","t":"Feb 5-6, 2020"},{"d":"Tel Aviv","t":"Jan. 27 - Feb 1, 2020"},{"d":"San Diego","t":"Jan 12-13, 2020"},{"d":"San Diego","t":"Dec 10-12, 2019"},{"d":"College Tour","t":"Nov. 24-28, 2019"},{"d":"San Diego","t":"Nov. 18-22, 2019"},{"d":"Charleston","t":"Nov. 6-11, 2019"},{"d":"San Diego","t":"Oct. 23-24, 2019"},{"d":"Australia","t":"Sep. 18 - Oct 2, 2019"},{"d":"San Diego","t":"Sep 11-12, 2019"},{"d":"Mt Princeton","t":"Aug 9-11, 2019"},{"d":"Las Vegas","t":"Aug 6-8, 2019"},{"d":"Tokyo","t":"6/15-6/20, 2019"},{"d":"San Diego","t":"Apr 24-25, 2019"},{"d":"Houston","t":"Apr. 17-20, 2019"},{"d":"San Jose","t":"Apr. 1-2, 2019"},{"d":"Tel Aviv/Jerusalem","t":"Jan. 26 - Feb3, 2019"},{"d":"San Diego","t":"Jan 15-17, 2019"},{"d":"Ashland","t":"Nov 20-24, 2018"},{"d":"San Jose","t":"Apr. 1-2, 2018"},{"d":"Simsbury","t":"Sept 20-25, 2018"},{"d":"San Diego","t":"Aug 28-30, 2018"},{"d":"San Diego","t":"Aug 23-24, 2018"},{"d":"Las Vegas","t":"Aug 7-9, 2018"},{"d":"Vietnam","t":"June 25-30, 2018"},{"d":"San Diego","t":"May 29-30, 2018"},{"d":"San Diego","t":"May 22-23, 2018"},{"d":"San Jose","t":"Apr. 1-2, 2018"},{"d":"San Jose","t":"Apr. 1-2, 2018"},{"d":"San Jose","t":"Apr. 1-2, 2018"},{"d":"San Jose","t":"Apr. 1-2, 2018"},{"d":"San Diego","t":"Feb 21-23, 2018"},{"d":"San Diego","t":"Jan 29-Feb 1, 2018"},{"d":"San Diego","t":"Dec. 9-13, 2017"},{"d":"Bangkok","t":"Dec. 1-5, 2017"},{"d":"Eugene","t":"Nov. 20-23, 2017"},{"d":"San Diego","t":"Nov. 1-2, 2017"},{"d":"London","t":"11/28 - 12/2, 2017"},{"d":"San Diego","t":"Oct. 13-14, 2017"},{"d":"San Diego","t":"Aug 16-17, 2017"},{"d":"San Diego","t":"Aug 16-17, 2017"},{"d":"Italy/London","t":"2017"},{"d":"San Diego","t":"Jan 17-19, 2017"},{"d":"San Francisco","t":"Feb 13-16, 2017"},{"d":"Singapore","t":"7/17-7/25, 2017"},{"d":"San Francisco","t":"Feb 13-16, 2017"},{"d":"San Diego","t":"Jan 17-19, 2017"},{"d":"Connecticut","t":"12/25 - 1/2, 2016"},{"d":"London","t":"11/28 - 12/2, 2016"},{"d":"San Diego","t":"Nov. 14-16, 2016"},{"d":"Austin","t":"Oct. 20-24, 2016"},{"d":"Marseille/Dublin","t":"9/24 - 9/30, 2016"},{"d":"San Diego","t":"Sept. 15-19, 2016"},{"d":"San Diego","t":"August 23-24, 2016"},{"d":"Las Vegas","t":"August 4-7, 2016"},{"d":"Singapore","t":"7/17-7/25, 2016"},{"d":"Santa Clara","t":"May 11-13, 2016, 2016"},{"d":"London, Dublin","t":"5/1 - 5/7, 2016"},{"d":"Hawaii","t":"3/28-4/6, 2016"},{"d":"San Francisco","t":"February 28 - March 4, 2016"},{"d":"San Francisco","t":"Jan. 27-28 2016, 2016"},{"d":"London","t":"11/14 - 11/21, 2015"},{"d":"London","t":"11/14 - 11/21, 2015"},{"d":"Derby/London/Dublin","t":"8/18 - 8/28, 2015"},{"d":"Las Vegas","t":"August 4-7, 2015"},{"d":"Singapore","t":"7/19-7/24, 2015"},{"d":"Tokyo","t":"6/18-6/24, 2015"},{"d":"San Francisco","t":"April 19-24, 2015"},{"d":"Tokyo","t":"3/31-4/5, 2015"},{"d":"Universal Orlando","t":"Feb 22-25, 2015"},{"d":"Seattle","t":"Nov. 7-9, 2014, 2014"},{"d":"Seattle","t":"Nov. 7-9, 2014, 2014"},{"d":"Washington D.C.","t":"6/21-6/26, 2014"},{"d":"Tokyo","t":"5/28-5/31, 2014"},{"d":"London","t":"4/26 - 5/2, 2014"},{"d":"San Francisco","t":"2014"},{"d":"San Jose","t":"10/16/13 - 10/19/13, 2013"},{"d":"Legoland","t":"June 5-9, 2013"},{"d":"Fort Lauderdale","t":"Feb 15-18, 2013"},{"d":"Copenhagen","t":"2/2/13 - 2/9/13, 2013"},{"d":"Chicago","t":"11/19/12 - 11/20/12, 2012"},{"d":"New York","t":"10/8/12 - 10/11/12, 2012"},{"d":"Crested Butte","t":"July 19-21, 2012"},{"d":"Canon City/Royal Gorge.","t":"June 29 - July 1, 2012"},{"d":"Washington D.C.","t":"May 3-6, 2012"},{"d":"Phoenix","t":"Nov 10-13, 2011"},{"d":"Oregon Roadtrip","t":"July 27-August 7th, 2011"},{"d":"Yellowstone","t":"May 31-June 4, 2011"},{"d":"West Simsbury","t":"Dec. 23-31, 2010"},{"d":"Basking Ridge","t":"11/3/10 - 11/4/10, 2010"},{"d":"World Equestrian Games","t":"9/29/10 - 10/4/10, 2010"},{"d":"Glenwood Springs","t":"Aug. 12-14, 2010"},{"d":"Chicago SME Show / Iowa","t":"5/18/10 - 5/21/10, 2010"},{"d":"San Antonio SKO","t":"2/2/10 - 2/5/10, 2010"},{"d":"Cleveland Cust Event","t":"4/14/10 - 4/15/10, 2010"},{"d":"Steamboat","t":"Mar. 26-28, 2010"},{"d":"Legoland","t":"Feb 13-16, 2010"},{"d":"San Antonio SKO","t":"2/2/10 - 2/5/10, 2010"},{"d":"Hawaii","t":"11/15-11/24, 2009"},{"d":"Nashville FY10 SKO","t":"10/11/09 - 10/15/09, 2009"},{"d":"Basking Ridge","t":"9/1/09 - 9/3/09, 2009"},{"d":"InAAU Orlando","t":"May 17-20, 2009"},{"d":"AT&T Meeting - Atlanta","t":"May 12-13, 2009"},{"d":"VoiceCon Orlando","t":"March 29 - April 1, 2009"},{"d":"Microsoft WPC","t":"Nov. 13-15, 2008, 2008"},{"d":"Escape the Cube St. Louis","t":"Nov. 5-6, 2008, 2008"},{"d":"Becky/Marcus wedding","t":"Sept. 24-28, 2008"},{"d":"Chicago/NYC","t":"August 18-21, 2008"},{"d":"Oregon Roadtrip","t":"July 25-August 3rd, 2008"},{"d":"MS101 Training Redmond","t":"July 15-20, 2008"},{"d":"MSFT Customer Briefing","t":"April 23-25, 2008"},{"d":"Sante Fe > California","t":"12/26 - 1/3, 2008"},{"d":"Basking Ridge","t":"2/11/08-2/14/08, 2008"},{"d":"Basking Ridge","t":"1/16/08-1/18/08, 2008"},{"d":"BT Americas Meeting","t":"8/14-8/16, 2007"},{"d":"Glasgow, Scotland-Wedding","t":"5/9/07-5/14/07, 2007"},{"d":"Florida/Disney/Space Center","t":"1/13-1/20, 2008"},{"d":"BT Americas Meeting","t":"1/9-1/10, 2008"},{"d":"SAPPHIRE 08","t":"2008"},{"d":"Nag's Head, NC","t":"2007"}];
-      // Expand minified keys to full format
-      state.history = seeded.map(e => ({ destination: e.d, dates: e.t }));
+      state.history = [];
       await setDoc(HISTORY_REF, { entries: state.history });
     }
   } catch(e) {
@@ -927,26 +895,22 @@ function render() {
   renderTabs();
   const trip = state.trips[state.activeIdx];
   if (!trip) {
-    // No trips: show empty + expanded setup
-    document.getElementById('listTitle').value = 'Packing List';
-    document.getElementById('listMeta').textContent  = '';
-    document.getElementById('progressStrip').style.display = 'none';
-    document.getElementById('markDoneBtn').style.display = 'none';
-    document.getElementById('setupToggleLabel').textContent = 'New Trip';
-    const panel = document.getElementById('setupPanel');
-    panel.classList.remove('collapsed');
-    populateSetupForm(null);
-    document.getElementById('setupPanel').classList.remove('collapsed');
-    document.getElementById('listBody').innerHTML = '';
+    // Always keep a live trip in progress so the list is never blank
+    addNewTrip();
     return;
   }
-
-  document.getElementById('listTitle').value = trip.destination;
-  document.getElementById('listMeta').textContent  = fmtDateRange(trip.startDate, trip.endDate) + '  ·  ' + trip.tripDays + ' days';
+  updateHeaderMeta(trip);
   document.getElementById('markDoneBtn').style.display = '';
-  document.getElementById('setupToggleLabel').textContent = 'Trip Details';
+  document.getElementById('setupToggleLabel').textContent = trip.tripDays > 0 ? 'Trip Details' : 'New Trip';
   populateSetupForm(trip);
   renderList(trip);
+}
+
+function updateHeaderMeta(trip) {
+  document.getElementById('listTitle').value = trip.destination;
+  document.getElementById('listMeta').textContent = trip.tripDays > 0
+    ? fmtDateRange(trip.startDate, trip.endDate) + '  ·  ' + trip.tripDays + ' days'
+    : '';
 }
 
 function renderTabs() {
@@ -1152,46 +1116,29 @@ function itemRowHtml(item, catId) {
 
 // ── Setup form ────────────────────────────────────────────────
 function populateSetupForm(trip) {
-  if (trip) {
-    document.getElementById('sDestination').value = trip.destination;
-    document.getElementById('sStart').value       = trip.startDate;
-    document.getElementById('sEnd').value         = trip.endDate;
-    state.setupMode = trip.travelMode;
-    selMode(trip.travelMode, false);
-  } else {
-    document.getElementById('sDestination').value = '';
-    applyDefaultDates();
-    selMode('air', false);
-    onDatesChange();
-  }
-}
-
-function applyDefaultDates(forceReset=false) {
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const sunday = new Date(today);
-  sunday.setDate(today.getDate() - today.getDay());
-  const sundayStr = sunday.toISOString().split('T')[0];
+  document.getElementById('sDestination').value = trip.destination === 'New Trip' ? '' : trip.destination;
   const startEl = document.getElementById('sStart');
   const endEl   = document.getElementById('sEnd');
+  startEl.value = trip.startDate || '';
+  endEl.value   = trip.endDate   || '';
+  const weekStr = startOfWeekStr();
+  startEl.min = weekStr;
+  endEl.min   = trip.startDate || weekStr;
+}
 
-  // Always reset if forced (new trip), or if dates are in the past/empty
-  const existingStart = startEl.value;
-  if (!forceReset && existingStart && existingStart >= todayStr) {
-    startEl.min = sundayStr;
-    endEl.min   = existingStart;
-    return;
-  }
+function startOfWeekStr() {
+  const today = new Date();
+  const sunday = new Date(today);
+  sunday.setDate(today.getDate() - today.getDay());
+  return sunday.toISOString().split('T')[0];
+}
 
-  startEl.value = sundayStr;
-  startEl.min   = sundayStr;
-  endEl.value   = '';
-  endEl.min     = sundayStr;
+function defaultDraftDates() {
+  return { start: startOfWeekStr(), end: '' };
 }
 
 window.toggleSetup = function() {
   document.getElementById('setupPanel').classList.toggle('collapsed');
-  applyDefaultDates();
 };
 
 window.onDatesChange = function() {
@@ -1206,14 +1153,22 @@ window.onDatesChange = function() {
       endEl.value = d.toISOString().split('T')[0];
     }
   }
+  syncTripDates();
 };
 
-window.selMode = function(m, update=true) {
-  state.setupMode = m;
-  ['air','car','other'].forEach(x =>
-    document.getElementById('m'+x.charAt(0).toUpperCase()+x.slice(1)).classList.toggle('sel', x===m)
-  );
-};
+function syncTripDates() {
+  const trip = state.trips[state.activeIdx];
+  if (!trip) return;
+  trip.startDate = document.getElementById('sStart').value;
+  trip.endDate   = document.getElementById('sEnd').value;
+  const days = getTripDays();
+  trip.tripDays = days;
+  if (days > 0) applyQuantitiesForDays(trip, days);
+  updateHeaderMeta(trip);
+  document.getElementById('setupToggleLabel').textContent = days > 0 ? 'Trip Details' : 'New Trip';
+  save();
+  renderList(trip);
+}
 
 function getTripDays() {
   const s = document.getElementById('sStart').value;
@@ -1221,56 +1176,6 @@ function getTripDays() {
   if (!s || !e) return 0;
   const d = Math.round((new Date(e+`T12:00:00`) - new Date(s+`T12:00:00`)) / 86400000) + 1;
   return d > 0 ? d : 0;
-}
-
-// ── Generate ──────────────────────────────────────────────────
-window.generateList = function() {
-  const dest  = document.getElementById('sDestination').value.trim();
-  const start = document.getElementById('sStart').value;
-  const end   = document.getElementById('sEnd').value;
-  if (!dest)       { alert('Please enter a destination.'); return; }
-  if (!start||!end){ alert('Please enter travel dates.'); return; }
-  const days = getTripDays();
-  if (days <= 0)   { alert('Return date must be after departure date.'); return; }
-
-  const month   = new Date(start+'T12:00:00').getMonth();
-  const isWinter = month <= 1 || month >= 10;
-  const isCar   = document.getElementById('mCar').classList.contains('sel');
-
-  const trip = {
-    id: uid(), destination: dest, startDate: start, endDate: end,
-    tripDays: days, travelMode: isCar ? 'car' : (document.getElementById('mOther').classList.contains('sel') ? 'other' : 'air'),
-    isWinter,
-    categories: state.master
-      ? buildCategoriesFromMaster({ days, isCar, isWinter })
-      : buildCategories({ days, isCar, isWinter }),
-    todos: state.master && state.master.todos
-      ? state.master.todos.map(t => ({ id: uid(), text: t.text, done: false }))
-      : [
-          { id: uid(), text: 'Pack bags',             done: false },
-          { id: uid(), text: 'Charge devices',         done: false },
-          { id: uid(), text: 'Check weather forecast', done: false },
-          { id: uid(), text: 'Download shows',         done: false }
-        ]
-  };
-
-  // Replace current trip if it exists, otherwise add
-  if (state.trips[state.activeIdx]) {
-    confirm2(`Replace "${state.trips[state.activeIdx].destination}"?`, 'This will overwrite the current trip\'s list.', () => {
-      state.trips[state.activeIdx] = trip;
-      finishGenerate(trip);
-    });
-  } else {
-    state.trips.push(trip);
-    state.activeIdx = state.trips.length - 1;
-    finishGenerate(trip);
-  }
-};
-
-function finishGenerate(trip) {
-  document.getElementById('setupPanel').classList.add('collapsed');
-  save();
-  render();
 }
 
 // ── Switch/add/close tabs ──────────────────────────────────────
@@ -1281,21 +1186,18 @@ window.switchTab = function(i) {
 };
 
 window.addNewTrip = function() {
-  state.trips.push(null); // placeholder
+  const { start, end } = defaultDraftDates();
+  const trip = {
+    id: uid(), destination: 'New Trip', startDate: start, endDate: end,
+    tripDays: 0,
+    categories: buildDraftCategories(),
+    todos: buildDraftTodos()
+  };
+  state.trips.push(trip);
   state.activeIdx = state.trips.length - 1;
-  state.trips.pop(); // remove placeholder; render will show empty
-  // Actually just show setup for a new blank trip
-  state.activeIdx = state.trips.length; // beyond array = new
-  renderTabs();
-  document.getElementById('listTitle').value = 'New Trip';
-  document.getElementById('listMeta').textContent  = '';
-  document.getElementById('progressStrip').style.display = 'none';
-  document.getElementById('markDoneBtn').style.display = 'none';
-  document.getElementById('listBody').innerHTML = '';
-  populateSetupForm(null);
-  applyDefaultDates(true);
+  save();
+  render();
   document.getElementById('setupPanel').classList.remove('collapsed');
-  document.getElementById('listBody').innerHTML = '';
 };
 
 window.confirmCloseTab = function(i) {
@@ -1766,37 +1668,27 @@ function buildDefaultMaster() {
     categories: [
       { id: uid(), name: 'Casual Clothes', items: [
         mitem('Shirts'), mitem('Pants'), mitem('Shorts'), mitem('Socks'),
-        mitem('Underwear'), mitem('Shoes'), mitem('Sandals'), mitem('Belt'),
-        mitem('Jacket'), mitem('Sweater / Hoodie'), mitem('Sunglasses'),
+        mitem('Underwear'), mitem('Shoes'), mitem('Sandals','optional'), mitem('Belt','optional'),
+        mitem('Jacket','optional'), mitem('Sweater / Hoodie'),
         mitem('Laundry Bag'), mitem('Long-Sleeve Shirt','optional'), mitem('Eye Mask','optional'),
       ]},
       { id: uid(), name: 'Electronics', items: [
-        mitem('Phone'), mitem('Phone Charger'), mitem('iPad'), mitem('iPad Charger'),
-        mitem('Apple Watch'), mitem('Watch Charger'), mitem('Portable Charger'),
-        mitem('Headphones'), mitem('Travel Charger'),
-        mitem('Car Charger','optional'), mitem('Car Phone Mount','optional'),
+        mitem('Phone'), mitem('Phone Charger'), mitem('iPad','optional'), mitem('iPad Charger','optional'),
+        mitem('Portable Charger','optional'),
+        mitem('Headphones'), mitem('Wall Charger'), mitem('Charging Cable'),
+        mitem('Travel Adapter','optional'),
       ]},
       { id: uid(), name: 'Toiletries', items: [
-        mitem('Shaver'), mitem('Shaver Charger','optional'), mitem('Toothbrush'),
+        mitem('Shaver','optional'), mitem('Shaver Charger','optional'), mitem('Toothbrush'),
         mitem('Toothbrush Charger','optional'), mitem('Toothpaste'), mitem('Deodorant'),
-        mitem('Shampoo'), mitem('Clippers'), mitem('Q-tips'), mitem('Tissues'),
-        mitem('Lens Wipes'), mitem('Sunscreen','optional'),
+        mitem('Shampoo','optional'), mitem('Clippers','optional'), mitem('Q-tips'), mitem('Tissues','optional'),
+        mitem('Lens Wipes','optional'), mitem('Sunscreen'),
         mitem('Multivitamins'), mitem('Medications'),
       ]},
       { id: uid(), name: 'Travel & Documents', items: [
-        mitem('Book','optional'), mitem('Wallet'), mitem('Passport / ID'), mitem('Snacks'),
-        mitem('Water Bottle'), mitem('Umbrella','optional'), mitem('Boarding Pass','optional'),
-        mitem('Membership Cards','optional'), mitem('Electrolytes','optional'),
-        mitem('Data Plans','optional'), mitem('Fan','optional'), mitem('Tea','optional'),
-      ]},
-      { id: uid(), name: 'Bags', items: [
-        mitem('Carry-on'), mitem('Backpack'), mitem('Suitcase','optional'),
-        mitem('Duffel Bag','optional'), mitem('Airtags','optional'),
-      ]},
-      { id: uid(), name: 'Car Items', items: [
-        mitem('Water'), mitem('Map','optional'), mitem('Paper Towels','optional'),
-        mitem('Snow Brush / Scraper','optional'), mitem('Shovel','optional'),
-        mitem('Car Blanket','optional'), mitem('Emergency Kit','optional'),
+        mitem('Book','optional'), mitem('Wallet'), mitem('Passport / ID'), mitem('Snacks','optional'),
+        mitem('Water Bottle','optional'), mitem('Umbrella','optional'), mitem('Boarding Pass','optional'),
+        mitem('Sunglasses','optional'),
       ]},
     ],
     todos: [
@@ -1808,148 +1700,41 @@ function buildDefaultMaster() {
   };
 }
 
-// ── Build categories from master template ─────────────────────
-function buildCategoriesFromMaster({ days, isCar, isWinter }) {
-  const packDays  = days - 1;
-
-  function qtyFor(name) {
-    // Dynamic quantities based on trip params
-    const q = {
-      'Shirts': packDays, 'Pants': Math.ceil(packDays/2),
-      'Shorts': Math.ceil(packDays/2),
-      'Socks': packDays+1, 'Underwear': packDays+1,
-      'Multivitamins': packDays*2, 'Medications': packDays,
-    };
-    return Math.max(1, q[name] || 1);
-  }
-
-  // Determine which categories are active for this trip
-  const skipCats = new Set();
-  if (!isCar)  skipCats.add('Car Items');
-
-  const cats = [];
-  (state.master.categories || []).forEach(mcat => {
-    if (skipCats.has(mcat.name)) return;
-    const items = mcat.items
-      .filter(mi => {
-        // For car items, skip winter items if not winter
-        if (mcat.name === 'Car Items' && !isWinter &&
-            ['Snow Brush / Scraper','Shovel','Car Blanket','Emergency Kit'].includes(mi.name)) return false;
-        // Skip car-only items for non-car trips
-        if (!isCar && ['Car Charger','Car Phone Mount','Water','Map','Paper Towels'].includes(mi.name) && mi.section === 'packing') return true;
-        return true;
-      })
-      .map(mi => ({
-        id: uid(), name: mi.name,
-        quantity: qtyFor(mi.name),
-        packedQty: 0,
-        section: mi.section
-      }));
-    if (items.length) cats.push({ id: uid(), name: mcat.name, items });
-  });
-  return cats;
+// ── Build a blank draft trip list (item names only, no quantities) ─
+function buildDraftCategories() {
+  const master = (state.master && state.master.categories) ? state.master : buildDefaultMaster();
+  return master.categories.map(cat => ({
+    id: uid(), name: cat.name,
+    items: cat.items.map(mi => ({ id: uid(), name: mi.name, quantity: 0, packedQty: 0, section: mi.section }))
+  }));
 }
 
-function buildCategories({ days, isCar, isWinter }) {
-  function item(name, qty, section='packing') {
-    return { id: uid(), name, quantity: Math.max(1, qty || 1), packedQty: 0, section };
-  }
-  const cats = [];
-  const packDays = days - 1; // exclude departure day for quantity calculations
+function buildDraftTodos() {
+  const master = (state.master && state.master.todos) ? state.master : buildDefaultMaster();
+  return master.todos.map(t => ({ id: uid(), text: t.text, done: false }));
+}
 
-  // Casual Clothes
-  cats.push({ id: uid(), name: 'Casual Clothes', items: [
-    item('Shirts',           packDays),
-    item('Pants',            Math.ceil(packDays/2)),
-    item('Shorts',           Math.ceil(packDays/2)),
-    item('Socks',            packDays+1),
-    item('Underwear',        packDays+1),
-    item('Shoes',            1),
-    item('Sandals',          1),
-    item('Belt',             1),
-    item('Jacket',           1),
-    item('Sweater / Hoodie', 1),
-    item('Sunglasses',       1),
-    item('Laundry Bag',      1),
-    item('Long-Sleeve Shirt', 1, 'optional'),
-    item('Eye Mask',          1, 'optional'),
-  ]});
-
-  // Electronics
-  cats.push({ id: uid(), name: 'Electronics', items: [
-    item('Phone',             1),
-    item('Phone Charger',     1),
-    item('iPad',              1),
-    item('iPad Charger',      1),
-    item('Apple Watch',       1),
-    item('Watch Charger',     1),
-    item('Portable Charger',  1),
-    item('Headphones',        1),
-    item('Travel Charger',  1),
-    item('Car Charger',     1, 'optional'),
-    item('Car Phone Mount', 1, 'optional'),
-  ]});
-
-  // Toiletries
-  cats.push({ id: uid(), name: 'Toiletries', items: [
-    item('Shaver',            1),
-    item('Shaver Charger',    1, 'optional'),
-    item('Toothbrush',        1),
-    item('Toothbrush Charger',1, 'optional'),
-    item('Toothpaste',        1),
-    item('Deodorant',         1),
-    item('Shampoo',           1),
-    item('Clippers',          1),
-    item('Q-tips',            1),
-    item('Tissues',           1),
-    item('Lens Wipes',        1),
-    item('Sunscreen',         1, 'optional'),
-    item('Multivitamins',     packDays*2),
-    item('Medications',       packDays),
-  ]});
-
-  // Travel & Documents
-  cats.push({ id: uid(), name: 'Travel & Documents', items: [
-    item('Book',               1, 'optional'),
-    item('Wallet',            1),
-    item('Passport / ID',     1),
-    item('Snacks',            1),
-    item('Water Bottle',      1),
-    item('Umbrella',          1, 'optional'),
-    item('Boarding Pass',     1, 'optional'),
-    item('Membership Cards',  1, 'optional'),
-    item('Electrolytes',      1, 'optional'),
-    item('Data Plans',        1, 'optional'),
-    item('Fan',               1, 'optional'),
-    item('Tea',               1, 'optional'),
-  ]});
-
-  // Bags
-  cats.push({ id: uid(), name: 'Bags', items: [
-    item('Carry-on',   1),
-    item('Backpack',   1),
-    item('Suitcase',   1, 'optional'),
-    item('Duffel Bag', 1, 'optional'),
-    item('Airtags',    1, 'optional'),
-  ]});
-
-  // Car items
-  if (isCar) {
-    const carItems = [
-      item('Water',          1),
-      item('Map',            1, 'optional'),
-      item('Paper Towels',   1, 'optional'),
-    ];
-    if (isWinter) carItems.push(
-      item('Snow Brush / Scraper', 1, 'optional'),
-      item('Shovel',               1, 'optional'),
-      item('Car Blanket',          1, 'optional'),
-      item('Emergency Kit',        1, 'optional'),
-    );
-    cats.push({ id: uid(), name: 'Car Items', items: carItems });
-  }
-
-  return cats;
+// ── Fill in default quantities once trip length is known ───────
+function applyQuantitiesForDays(trip, days) {
+  const packDays = Math.max(0, days - 1);
+  const dayQty = {
+    'Shirts': packDays,
+    'Pants': Math.ceil(packDays/2),
+    'Shorts': Math.ceil(packDays/2),
+    'Socks': packDays + 1,
+    'Underwear': packDays + 1,
+    'Multivitamins': packDays * 2,
+    'Medications': packDays,
+  };
+  (trip.categories || []).forEach(cat => {
+    cat.items.forEach(item => {
+      if (dayQty.hasOwnProperty(item.name)) {
+        item.quantity = Math.max(1, dayQty[item.name]);
+      } else if (!item.quantity) {
+        item.quantity = 1;
+      }
+    });
+  });
 }
 
 // ── Start ─────────────────────────────────────────────────────
