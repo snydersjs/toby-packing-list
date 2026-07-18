@@ -208,6 +208,7 @@ body {
 .btn-danger:hover { background: #3a1018; }
 .btn-sm        { padding: 6px 11px; font-size: 12px; }
 .btn-icon-only { padding: 7px 9px; }
+.btn:disabled  { cursor: not-allowed; pointer-events: none; }
 
 /* ── Two-column list layout ── */
 .list-body {
@@ -216,6 +217,11 @@ body {
   grid-template-columns: 1fr;
   gap: 0;
   align-items: start;
+}
+.list-body.locked {
+  opacity: 0.4;
+  pointer-events: none;
+  user-select: none;
 }
 @media (min-width: 768px) {
   .list-body { grid-template-columns: 1fr 1fr; gap: 0 20px; }
@@ -604,7 +610,7 @@ body {
     </div>
     <div class="topbar-right">
       <button class="btn btn-ghost btn-sm" onclick="showHistory()">History</button>
-      <button class="btn btn-ghost btn-sm btn-icon-only" onclick="goEdit()" title="Edit list">✏</button>
+      <button class="btn btn-ghost btn-sm btn-icon-only" id="editListBtn" onclick="goEdit()" title="Edit list">✏</button>
     </div>
   </div>
 
@@ -733,6 +739,7 @@ window.saveDestination = function(val) {
   document.getElementById('sDestination').value = name;
   renderTabs();
   save();
+  refreshCompletionState(trip);
 };
 
 // ── Notes popover ────────────────────────────────────────────
@@ -903,10 +910,9 @@ function render() {
     return;
   }
   updateHeaderMeta(trip);
-  document.getElementById('markDoneBtn').style.display = '';
-  document.getElementById('setupToggleLabel').textContent = 'Trip Details';
   populateSetupForm(trip);
   renderList(trip);
+  refreshCompletionState(trip);
 }
 
 function updateHeaderMeta(trip) {
@@ -1140,8 +1146,34 @@ function defaultDraftDates() {
   return { start: startOfWeekStr(), end: '' };
 }
 
+function tripIsComplete(trip) {
+  return !!trip && !!trip.destination && trip.destination !== 'New Trip' && trip.tripDays > 0;
+}
+
+function refreshCompletionState(trip) {
+  const complete = tripIsComplete(trip);
+  const panel = document.getElementById('setupPanel');
+  document.getElementById('listBody').classList.toggle('locked', !complete);
+  document.getElementById('markDoneBtn').style.display = complete ? '' : 'none';
+  document.getElementById('editListBtn').disabled = !complete;
+  document.getElementById('editListBtn').style.opacity = complete ? '' : '0.35';
+  document.getElementById('setupToggleLabel').textContent = 'Trip Details' + (trip.tripDays > 0 ? ` (${trip.tripDays} day${trip.tripDays===1?'':'s'})` : '');
+  if (complete) {
+    panel.classList.add('collapsed');
+  } else {
+    panel.classList.remove('collapsed');
+  }
+}
+
 window.toggleSetup = function() {
-  document.getElementById('setupPanel').classList.toggle('collapsed');
+  const trip = state.trips[state.activeIdx];
+  const panel = document.getElementById('setupPanel');
+  if (panel.classList.contains('collapsed')) {
+    panel.classList.remove('collapsed');
+  } else if (tripIsComplete(trip)) {
+    panel.classList.add('collapsed');
+  }
+  // Incomplete trips can't be collapsed until destination + dates are set
 };
 
 window.expandSetupPanel = function(focusDest) {
@@ -1175,9 +1207,9 @@ function syncTripDates() {
   trip.tripDays = days;
   if (days > 0) applyQuantitiesForDays(trip, days);
   updateHeaderMeta(trip);
-  document.getElementById('setupToggleLabel').textContent = 'Trip Details';
   save();
   renderList(trip);
+  refreshCompletionState(trip);
 }
 
 function getTripDays() {
