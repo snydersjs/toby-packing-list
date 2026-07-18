@@ -596,7 +596,7 @@ body {
   <!-- Top bar -->
   <div class="topbar">
     <div class="topbar-left">
-      <input class="topbar-title" id="listTitle" type="text" value="Packing List" onblur="saveDestination(this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="background:none;border:none;color:inherit;font-size:16px;font-weight:700;letter-spacing:-0.2px;width:100%;min-width:0;padding:0;cursor:text;" />
+      <input class="topbar-title" id="listTitle" type="text" value="Packing List" onfocus="expandSetupPanel()" onblur="saveDestination(this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="background:none;border:none;color:inherit;font-size:16px;font-weight:700;letter-spacing:-0.2px;width:100%;min-width:0;padding:0;cursor:text;" />
       <div class="topbar-meta" id="listMeta"></div>
     </div>
     <div class="topbar-right">
@@ -1139,6 +1139,10 @@ function defaultDraftDates() {
 
 window.toggleSetup = function() {
   document.getElementById('setupPanel').classList.toggle('collapsed');
+};
+
+window.expandSetupPanel = function() {
+  document.getElementById('setupPanel').classList.remove('collapsed');
 };
 
 window.onDatesChange = function() {
