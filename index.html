@@ -148,17 +148,20 @@ body {
 .setup-panel {
   background: var(--surface2);
   border-bottom: 1px solid var(--border);
-  padding: 14px 16px;
+  padding: 0;
 }
 .setup-panel-toggle {
   display: flex; align-items: center; justify-content: space-between;
   cursor: pointer; user-select: none;
+  padding: 12px 16px;
+  transition: background 0.15s;
 }
-.setup-panel-toggle span { font-size: 13px; font-weight: 600; color: var(--text2); }
-.setup-panel-toggle .chevron { font-size: 11px; color: var(--text3); transition: transform 0.2s; }
+.setup-panel-toggle:hover { background: var(--surface3); }
+.setup-panel-toggle span { font-size: 13px; font-weight: 600; color: var(--text); }
+.setup-panel-toggle .chevron { font-size: 18px; color: var(--accent); transition: transform 0.2s; }
 .setup-panel.collapsed .chevron { transform: rotate(-90deg); }
 .setup-panel.collapsed .setup-form { display: none; }
-.setup-form { margin-top: 12px; }
+.setup-form { padding: 0 16px 14px; }
 .setup-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -596,7 +599,7 @@ body {
   <!-- Top bar -->
   <div class="topbar">
     <div class="topbar-left">
-      <input class="topbar-title" id="listTitle" type="text" value="Packing List" onfocus="expandSetupPanel()" onblur="saveDestination(this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="background:none;border:none;color:inherit;font-size:16px;font-weight:700;letter-spacing:-0.2px;width:100%;min-width:0;padding:0;cursor:text;" />
+      <input class="topbar-title" id="listTitle" type="text" value="Packing List" onfocus="expandSetupPanel()" onblur="saveDestination(this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="background:none;border:none;border-bottom:1px dashed var(--text3);color:inherit;font-size:16px;font-weight:700;letter-spacing:-0.2px;width:100%;min-width:0;padding:0 0 2px;cursor:text;" />
       <div class="topbar-meta" id="listMeta"></div>
     </div>
     <div class="topbar-right">
@@ -616,10 +619,10 @@ body {
 
   <!-- Setup panel (collapsible) -->
   <div class="setup-panel collapsed" id="setupPanel">
-    <div class="setup-panel-toggle" style="cursor:default">
-      <span id="setupToggleLabel" onclick="toggleSetup()" style="cursor:pointer;flex:1">Trip Details</span>
-      <button class="btn btn-ghost btn-sm" id="markDoneBtn" onclick="markTripDone()" style="display:none;font-size:12px;padding:5px 10px;margin-right:8px">Mark Trip Done</button>
-      <span class="chevron" onclick="toggleSetup()" style="cursor:pointer">▾</span>
+    <div class="setup-panel-toggle" onclick="toggleSetup()">
+      <span id="setupToggleLabel" style="flex:1">Trip Details</span>
+      <button class="btn btn-ghost btn-sm" id="markDoneBtn" onclick="event.stopPropagation();markTripDone()" style="display:none;font-size:12px;padding:5px 10px;margin-right:8px">Mark Trip Done</button>
+      <span class="chevron">▾</span>
     </div>
     <div class="setup-form">
       <div class="setup-grid">
@@ -901,7 +904,7 @@ function render() {
   }
   updateHeaderMeta(trip);
   document.getElementById('markDoneBtn').style.display = '';
-  document.getElementById('setupToggleLabel').textContent = trip.tripDays > 0 ? 'Trip Details' : 'New Trip';
+  document.getElementById('setupToggleLabel').textContent = 'Trip Details';
   populateSetupForm(trip);
   renderList(trip);
 }
@@ -1169,7 +1172,7 @@ function syncTripDates() {
   trip.tripDays = days;
   if (days > 0) applyQuantitiesForDays(trip, days);
   updateHeaderMeta(trip);
-  document.getElementById('setupToggleLabel').textContent = days > 0 ? 'Trip Details' : 'New Trip';
+  document.getElementById('setupToggleLabel').textContent = 'Trip Details';
   save();
   renderList(trip);
 }
