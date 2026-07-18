@@ -918,7 +918,7 @@ function render() {
 function updateHeaderMeta(trip) {
   document.getElementById('listTitle').value = trip.destination;
   document.getElementById('listMeta').textContent = trip.tripDays > 0
-    ? fmtDateRange(trip.startDate, trip.endDate) + '  ·  ' + trip.tripDays + ' days'
+    ? fmtDateRange(trip.startDate, trip.endDate) + '  ·  ' + trip.tripDays + ' night' + (trip.tripDays===1?'':'s')
     : '';
 }
 
@@ -1157,7 +1157,7 @@ function refreshCompletionState(trip) {
   document.getElementById('markDoneBtn').style.display = complete ? '' : 'none';
   document.getElementById('editListBtn').disabled = !complete;
   document.getElementById('editListBtn').style.opacity = complete ? '' : '0.35';
-  document.getElementById('setupToggleLabel').textContent = 'Trip Details' + (trip.tripDays > 0 ? ` (${trip.tripDays} day${trip.tripDays===1?'':'s'})` : '');
+  document.getElementById('setupToggleLabel').textContent = 'Trip Details' + (trip.tripDays > 0 ? ` (${trip.tripDays} night${trip.tripDays===1?'':'s'})` : '');
   if (complete) {
     panel.classList.add('collapsed');
   } else {
@@ -1188,11 +1188,9 @@ window.onDatesChange = function() {
   const endEl = document.getElementById('sEnd');
   if (start) {
     endEl.min = start;
-    // If return is empty or before depart, default to start+6 (1 week)
-    if (!endEl.value || endEl.value < start) {
-      const d = new Date(start + 'T12:00:00');
-      d.setDate(d.getDate() + 6);
-      endEl.value = d.toISOString().split('T')[0];
+    // Clear an existing return date if it's now before departure; don't auto-fill one
+    if (endEl.value && endEl.value < start) {
+      endEl.value = '';
     }
   }
   syncTripDates();
@@ -1216,7 +1214,7 @@ function getTripDays() {
   const s = document.getElementById('sStart').value;
   const e = document.getElementById('sEnd').value;
   if (!s || !e) return 0;
-  const d = Math.round((new Date(e+`T12:00:00`) - new Date(s+`T12:00:00`)) / 86400000) + 1;
+  const d = Math.round((new Date(e+`T12:00:00`) - new Date(s+`T12:00:00`)) / 86400000);
   return d > 0 ? d : 0;
 }
 
@@ -1725,7 +1723,7 @@ function buildDefaultMaster() {
         mitem('Toothbrush Charger','optional'), mitem('Toothpaste'), mitem('Deodorant'),
         mitem('Shampoo','optional'), mitem('Clippers','optional'), mitem('Q-tips'), mitem('Tissues','optional'),
         mitem('Lens Wipes','optional'), mitem('Sunscreen'),
-        mitem('Multivitamins'), mitem('Medications'),
+        mitem('Multivitamins'),
       ]},
       { id: uid(), name: 'Travel & Documents', items: [
         mitem('Book','optional'), mitem('Wallet'), mitem('Passport / ID'), mitem('Snacks','optional'),
@@ -1757,16 +1755,14 @@ function buildDraftTodos() {
 }
 
 // ── Fill in default quantities once trip length is known ───────
-function applyQuantitiesForDays(trip, days) {
-  const packDays = Math.max(0, days - 1);
+function applyQuantitiesForDays(trip, nights) {
   const dayQty = {
-    'Shirts': packDays,
-    'Pants': Math.ceil(packDays/2),
-    'Shorts': Math.ceil(packDays/2),
-    'Socks': packDays + 1,
-    'Underwear': packDays + 1,
-    'Multivitamins': packDays * 2,
-    'Medications': packDays,
+    'Shirts': nights,
+    'Pants': Math.ceil(nights/3),
+    'Shorts': Math.ceil(nights/3),
+    'Socks': nights + 1,
+    'Underwear': nights + 1,
+    'Multivitamins': nights * 2,
   };
   (trip.categories || []).forEach(cat => {
     cat.items.forEach(item => {
