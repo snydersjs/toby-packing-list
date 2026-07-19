@@ -1010,8 +1010,8 @@ function renderList(trip) {
   let topHtml = '', bottomHtml = '';
 
   trip.categories.forEach(cat => {
-    const packing  = cat.items.filter(i => i.section === 'packing');
-    const optional = cat.items.filter(i => i.section === 'optional');
+    const packing  = cat.items.filter(i => i.section === 'packing').sort((a,b) => a.name.localeCompare(b.name));
+    const optional = cat.items.filter(i => i.section === 'optional').sort((a,b) => a.name.localeCompare(b.name));
     if (!packing.length && !optional.length) return;
 
     let catDone = 0, catTotal = packing.length;
