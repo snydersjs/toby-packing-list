@@ -610,6 +610,7 @@ body {
     </div>
     <div class="topbar-right">
       <button class="btn btn-ghost btn-sm" onclick="showHistory()">History</button>
+      <button class="btn btn-ghost btn-sm" id="moveInBtn" onclick="toggleMoveInView()">Move-In List</button>
       <button class="btn btn-ghost btn-sm btn-icon-only" id="editListBtn" onclick="goEdit()" title="Edit list">✏</button>
     </div>
   </div>
@@ -716,14 +717,17 @@ const db    = getFirestore(fbApp);
 const STATE_REF   = doc(db, 'TobyPackingList', 'currentTrip');
 const HISTORY_REF = doc(db, 'TobyPackingList', 'tripHistory');
 const MASTER_REF  = doc(db, 'TobyPackingList', 'masterTemplate');
+const MOVEIN_REF  = doc(db, 'TobyPackingList', 'moveInList');
 
 // ── App State ──────────────────────────────────────────────────
 let state = {
   trips: [],        // array of trip objects
   activeIdx: 0,
   history: [],      // past trips (dest + dates)
-  master: null      // master template (loaded from Firestore)
+  master: null,     // master template (loaded from Firestore)
+  moveIn: null       // move-in packing list (loaded from Firestore)
 };
+let activeContext = 'trip'; // 'trip' | 'moveIn' -- which list is currently shown
 
 let confirmCb = null;
 
@@ -782,8 +786,8 @@ function saveNote() {
   item.note = document.getElementById('notesTextarea').value.trim();
   noteTarget = null;
   document.getElementById('notesPopover').classList.remove('open');
-  save();
-  renderList(state.trips[state.activeIdx]);
+  saveActive();
+  renderList(currentList());
 }
 
 function closeNote() {
@@ -792,7 +796,7 @@ function closeNote() {
   if (noteTarget && ta) {
     const item = findItem(noteTarget.catId, noteTarget.itemId);
     if (item) item.note = ta.value.trim();
-    save();
+    saveActive();
   }
   noteTarget = null;
   document.getElementById('notesPopover').classList.remove('open');
@@ -803,7 +807,7 @@ document.addEventListener('click', (e) => {
   if (pop.classList.contains('open') && !pop.contains(e.target) && !e.target.classList.contains('notes-btn')) {
     closeNote();
     // Re-render only if we had a note target
-    if (state.trips[state.activeIdx]) renderList(state.trips[state.activeIdx]);
+    if (currentList()) renderList(currentList());
   }
 });
 
@@ -821,6 +825,17 @@ async function boot() {
       await setDoc(MASTER_REF, state.master);
     }
   } catch(e) { console.error('Master load error', e); }
+
+  // Load or seed move-in list
+  try {
+    const moveInSnap = await getDoc(MOVEIN_REF);
+    if (moveInSnap.exists()) {
+      state.moveIn = moveInSnap.data();
+    } else {
+      state.moveIn = buildDefaultMoveIn();
+      await setDoc(MOVEIN_REF, state.moveIn);
+    }
+  } catch(e) { console.error('Move-in load error', e); state.moveIn = buildDefaultMoveIn(); }
 
   // Load trip history from Firestore (starts empty for a new collection)
   try {
@@ -856,19 +871,21 @@ async function boot() {
     if (isFirstLoad) {
       document.getElementById('loader').classList.add('gone');
       isFirstLoad = false;
-      render();
+      renderActive();
     } else {
       // Skip re-render if we just saved (our own write triggered this snapshot)
       if (isSaving) return;
       // Only re-render the list/tabs; don't disturb an in-progress setup form
       const activeView = document.querySelector('.view.active')?.id;
-      if (activeView === 'viewList') {
+      if (activeView === 'viewList' && activeContext === 'trip') {
         renderTabs();
         if (state.trips[state.activeIdx]) renderList(state.trips[state.activeIdx]);
       } else if (activeView === 'viewEdit') {
         // leave edit undisturbed
+      } else if (activeView === 'viewList' && activeContext === 'moveIn') {
+        // leave move-in view undisturbed by trip data changes
       } else {
-        render();
+        renderActive();
       }
     }
   }, (err) => {
@@ -890,15 +907,63 @@ async function saveMaster() {
   catch(e) { console.error('Master save error', e); }
 }
 
+async function saveMoveIn() {
+  try { await setDoc(MOVEIN_REF, state.moveIn); }
+  catch(e) { console.error('Move-in save error', e); }
+}
+
+// ── Active list (whichever of trip / move-in is currently shown) ─
+function currentList() {
+  return activeContext === 'moveIn' ? state.moveIn : state.trips[state.activeIdx];
+}
+
+async function saveActive() {
+  if (activeContext === 'moveIn') { await saveMoveIn(); }
+  else { await save(); }
+}
+
 // ── Views ─────────────────────────────────────────────────────
 function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
 }
-window.goList    = () => { render(); showView('viewList'); };
+window.goList    = () => { renderActive(); showView('viewList'); };
 window.goEdit    = () => { renderEdit(); showView('viewEdit'); };
 window.showHistory = () => { renderHistory(); showView('viewHistory'); };
+
+function renderActive() {
+  if (activeContext === 'moveIn') {
+    renderMoveIn();
+  } else {
+    document.getElementById('tabsBar').style.display = '';
+    document.getElementById('setupPanel').style.display = '';
+    document.getElementById('editListBtn').style.display = '';
+    const lt = document.getElementById('listTitle');
+    lt.style.cursor = 'pointer';
+    lt.onclick = () => expandSetupPanel(true);
+    document.getElementById('moveInBtn').textContent = 'Move-In List';
+    render();
+  }
+}
+
+function renderMoveIn() {
+  document.getElementById('tabsBar').style.display = 'none';
+  document.getElementById('setupPanel').style.display = 'none';
+  document.getElementById('editListBtn').style.display = 'none';
+  const lt = document.getElementById('listTitle');
+  lt.value = 'Move-In List';
+  lt.style.cursor = 'default';
+  lt.onclick = null;
+  document.getElementById('listMeta').textContent = '';
+  document.getElementById('moveInBtn').textContent = 'Back to Trip';
+  renderList(state.moveIn);
+}
+
+window.toggleMoveInView = function() {
+  activeContext = activeContext === 'moveIn' ? 'trip' : 'moveIn';
+  renderActive();
+};
 
 // ── Render (list view) ────────────────────────────────────────
 function render() {
@@ -1280,7 +1345,10 @@ window.toggleOpt = function(optId) {
 };
 
 function collapseSetup() {
-  document.getElementById('setupPanel').classList.add('collapsed');
+  const trip = state.trips[state.activeIdx];
+  if (activeContext === 'trip' && tripIsComplete(trip)) {
+    document.getElementById('setupPanel').classList.add('collapsed');
+  }
 }
 
 window.onLeftQty = function(catId, itemId, sel) {
@@ -1300,7 +1368,7 @@ window.onLeftQty = function(catId, itemId, sel) {
     item.section = 'optional';
     item.packedQty = 0;
   }
-  save(); renderList(state.trips[state.activeIdx]);
+  saveActive(); renderList(currentList());
 };
 
 window.commitCustomLeft = function(catId, itemId, inp) {
@@ -1311,7 +1379,7 @@ window.commitCustomLeft = function(catId, itemId, inp) {
   if (!item) return;
   item.quantity = val;
   inp.value = '';
-  save(); renderList(state.trips[state.activeIdx]);
+  saveActive(); renderList(currentList());
 };
 
 window.onRightQty = function(catId, itemId, sel) {
@@ -1326,7 +1394,7 @@ window.onRightQty = function(catId, itemId, sel) {
   const item = findItem(catId, itemId);
   if (!item) return;
   item.packedQty = parseInt(sel.value);
-  save(); renderList(state.trips[state.activeIdx]);
+  saveActive(); renderList(currentList());
 };
 
 window.commitCustomRight = function(catId, itemId, inp) {
@@ -1337,7 +1405,7 @@ window.commitCustomRight = function(catId, itemId, inp) {
   if (!item) return;
   item.packedQty = val;
   inp.value = '';
-  save(); renderList(state.trips[state.activeIdx]);
+  saveActive(); renderList(currentList());
 };
 
 window.addOptionalItem = function(catId, inp) {
@@ -1347,7 +1415,7 @@ window.addOptionalItem = function(catId, inp) {
   if (!cat) return;
   cat.items.push({ id: uid(), name, quantity: 1, packedQty: 0, section: 'optional' });
   inp.value = '';
-  save(); renderList(state.trips[state.activeIdx]);
+  saveActive(); renderList(currentList());
 };
 
 window.promoteItem = function(catId, itemId) {
@@ -1355,30 +1423,36 @@ window.promoteItem = function(catId, itemId) {
   if (!item) return;
   item.section = 'packing';
   if (!item.quantity || item.quantity === 0) item.quantity = 1;
-  save(); renderList(state.trips[state.activeIdx]);
+  saveActive(); renderList(currentList());
 };
 
 window.toggleTodo = function(id, done) {
   collapseSetup();
-  const trip = state.trips[state.activeIdx];
-  const t = trip.todos.find(x => x.id === id);
-  if (t) { t.done = done; save(); renderList(trip); }
+  const list = currentList();
+  if (!list) return;
+  if (!list.todos) list.todos = [];
+  const t = list.todos.find(x => x.id === id);
+  if (t) { t.done = done; saveActive(); renderList(list); }
 };
 
 window.addTodo = function() {
   const inp  = document.getElementById('todoInput');
   const text = inp.value.trim();
   if (!text) return;
-  const trip = state.trips[state.activeIdx];
-  trip.todos.push({ id: uid(), text, done: false });
+  const list = currentList();
+  if (!list) return;
+  if (!list.todos) list.todos = [];
+  list.todos.push({ id: uid(), text, done: false });
   inp.value = '';
-  save(); renderList(trip);
+  saveActive(); renderList(list);
 };
 
 window.deleteTodo = function(id) {
-  const trip = state.trips[state.activeIdx];
-  trip.todos = trip.todos.filter(x => x.id !== id);
-  save(); renderList(trip);
+  const list = currentList();
+  if (!list) return;
+  if (!list.todos) list.todos = [];
+  list.todos = list.todos.filter(x => x.id !== id);
+  saveActive(); renderList(list);
 };
 
 // ── Edit view ─────────────────────────────────────────────────
@@ -1663,8 +1737,8 @@ function findItem(catId, itemId) {
   return cat ? cat.items.find(i => i.id === itemId) : null;
 }
 function findCat(catId) {
-  const trip = state.trips[state.activeIdx];
-  return trip ? trip.categories.find(c => c.id === catId) : null;
+  const list = currentList();
+  return list ? list.categories.find(c => c.id === catId) : null;
 }
 function isDone(item) { return item.quantity > 0 && item.packedQty >= item.quantity; }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -1752,6 +1826,41 @@ function buildDraftCategories() {
 function buildDraftTodos() {
   const master = (state.master && state.master.todos) ? state.master : buildDefaultMaster();
   return master.todos.map(t => ({ id: uid(), text: t.text, done: false }));
+}
+
+// ── Build default move-in list (single persistent list, not per-trip) ──
+function buildDefaultMoveIn() {
+  function mitem(name, section='packing') {
+    return { id: uid(), name, quantity: 1, packedQty: 0, section };
+  }
+  return {
+    categories: [
+      { id: uid(), name: 'Bedroom', items: [
+        mitem('Blankets'), mitem('Hangars'), mitem('Pillows'), mitem('Sheets'),
+        mitem('Lamp', 'optional'),
+      ]},
+      { id: uid(), name: 'Bathroom', items: [
+        mitem('Robe'), mitem('Shaver / Charger'), mitem('Slippers'),
+        mitem('Toilet Plunger'), mitem('Towels'),
+      ]},
+      { id: uid(), name: 'Kitchen', items: [
+        mitem('Bowls'), mitem('Glasses'), mitem('Mugs'), mitem('Pans'),
+        mitem('Paper Towels'), mitem('Plates'), mitem('Silverware'), mitem('Towels'),
+      ]},
+      { id: uid(), name: 'Shared Space', items: [
+        mitem('Blanket'),
+        mitem('Controllers', 'optional'), mitem('Games', 'optional'), mitem('Xbox', 'optional'),
+      ]},
+      { id: uid(), name: 'Electronics', items: [
+        mitem('iPad'), mitem('Keyboard'), mitem('Laptop'), mitem('Monitor'),
+        mitem('Mouse'), mitem('Wall Chargers'),
+      ]},
+      { id: uid(), name: 'Misc', items: [
+        mitem('Guitar'),
+      ]},
+    ],
+    todos: []
+  };
 }
 
 // ── Fill in default quantities once trip length is known ───────
